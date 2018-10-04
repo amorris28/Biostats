@@ -68,7 +68,24 @@ rnaseq_z %>%
 
 
 ## Summary statistics
-rnaseq %>% 
+pop_sum <- rnaseq %>% 
   group_by(Population) %>% 
-  summarize
+  summarize_at(vars(Gene01:Gene10), funs(mean, var, sd)) %>% 
   
+
+tre_sum <- rnaseq %>% 
+  group_by(Treatment) %>% 
+  summarize_at(vars(Gene01:Gene10), funs(mean, var, sd))
+
+sex_sum <- rnaseq %>% 
+  group_by(Sex) %>% 
+  summarize_at(vars(Gene01:Gene10), funs(mean, var, sd))
+
+
+?summarize
+
+rnaseq %>% 
+  group_by(Population, Treatment, Sex) %>% 
+  summarize_at(vars(Gene01:Gene10), .funs = c(Mean = 'mean', Variance = 'var', St.dev = 'sd')) %>% 
+  print(n = Inf, width = Inf)
+

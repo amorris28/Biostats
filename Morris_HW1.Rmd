@@ -1,0 +1,149 @@
+---
+title: "Homework 1"
+author: "Andrew Morris"
+date: "October 2, 2018"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Initialize packages}
+# Initialize packages
+library(tidyverse)
+library(magrittr)
+library(kableExtra)
+```
+
+```{r Import data}
+rnaseq <- read_csv('HW_RNAseq.csv') # Import data
+```
+
+## Variables & Characteristics 
+
+- SampleID - Categorical, Independent
+- Population - Categorical, Independent
+- Treatment - Categorical, Independent
+- Sex - Categorical, Independent
+- Gene01:Gene10 - Continuous, Response
+
+## Histograms of gene expression for Gene 1 through 10
+
+```{r Expression histogram}
+rnaseq %>% 
+  gather(key = "Gene", value = "Expression", Gene01:Gene10) %>% # Move expression to one column
+  mutate_at(vars(SampleID, Population, Treatment, Sex, Gene), funs(factor)) %>% 
+  # Convert categoricals to factor
+  ggplot(aes(Expression)) + # Plot histograms for each gene
+    geom_histogram(bins = 6) +
+    facet_wrap(~ Gene, scales = "free") +
+    theme_bw()
+```
+
+## Convert raw expression values to z scores
+
+```{r Z transform}
+rnaseq_z <- rnaseq %>% # Create a new column for a gene with z-transformed expression values
+  mutate_at(vars(Gene01_z = Gene01, Gene02_z = Gene02, Gene03_z = Gene03, 
+                 Gene04_z = Gene04, Gene05_z = Gene05, Gene06_z = Gene06,
+                 Gene07_z = Gene07, Gene08_z = Gene08, Gene09_z = Gene09,
+                 Gene10_z = Gene10), scale) %>% 
+  mutate_if(is.character, as.factor) # Convert categoricals to factor
+```
+
+## Histograms of raw expression values and z scores for Gene 6 and 10
+
+```{r Z score histograms}
+rnaseq_z %>% 
+  select(Gene06, Gene10, Gene06_z, Gene10_z) %>% # Pull out two genes
+  gather(key = "Gene", value = "Expression", Gene06:Gene10_z) %>% 
+  # Collapse data to one column
+  ggplot(aes(Expression)) + # Plot histograms of expression of raw data and z scores
+    geom_histogram(bins = 6) +
+    facet_wrap(~ Gene, scales = 'free')
+```
+
+## Boxplots of each Population x Treatment x Sex combination for raw values and z scores
+
+```{r Boxplots}
+gene_z <- data_frame( # Create dummy data frame to add "raw" vs. "z score" column
+  Gene = c('Gene06', 'Gene10', 'Gene06_z', 'Gene10_z'),
+  Score = factor(c('raw', 'raw', 'z', 'z'))
+)
+
+rnaseq_z %>%
+ select(Population:Sex, Gene06, Gene06_z, Gene10, Gene10_z) %>% 
+  # Subset two genes
+ gather(key = "Gene", value = "Expression", Gene06:Gene10_z) %>% 
+  # Collapse to one column
+ left_join(gene_z, by = 'Gene') %>% # Add Score: 'raw' or 'z' column
+ mutate_at(vars(Gene), funs(substr(., 1, 6))) %>% 
+  # Remove '_z' from the end of gene names
+ ggplot(aes(y = Expression, color = Gene)) + # Plot boxplots
+   facet_grid(rows = vars(Score), cols = vars(Population, Treatment, Sex),
+            scales = 'free') +
+   geom_boxplot()
+```
+
+## Summary statistics of raw gene expression data
+
+```{r Summary statistics, eval=FALSE, include=FALSE}
+rnaseq %>% 
+  group_by(Population, Treatment, Sex) %>% 
+  summarize_at(vars(Gene01:Gene10), # Calculate mean, variance, sd for each factor combination
+               .funs = c(Mean = 'mean', Variance = 'var', St.dev = 'sd')) %>% 
+  select(Population:Sex, order(colnames(.))) %>% # Reorder columns so all Gene01 info is together
+  mutate_at(vars(Gene01_Mean:Gene10_Variance), funs(round(., digits=2))) %>% 
+  kable(col.names = c('Population', 'Treatment', 'Sex', 'Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance')) %>%
+  kable_styling(c("striped", "bordered"), full_width = F) %>%
+  add_header_above(c(" " = 3, "Gene 1" = 3,  "Gene 2" = 3,  "Gene 3" = 3, 
+                    "Gene 4" = 3,  "Gene 5" = 3,  "Gene 6" = 3,  "Gene 7" = 3, 
+                    "Gene 8" = 3,  "Gene 9" = 3,  "Gene 10" = 3)) %>%
+  collapse_rows(columns = 1:3, valign = "middle") %>% 
+  scroll_box(width = "700px", height = "350px") # Print all data
+
+```
+
+
+```{r Summary statistics by variable}
+pop <- rnaseq %>% 
+  group_by(Population) %>% 
+  summarize_at(vars(Gene01:Gene10), funs(mean, sd, var)) %>% 
+  rename(Variable = Population)
+
+treat <- rnaseq %>% 
+  group_by(Treatment) %>% 
+  summarize_at(vars(Gene01:Gene10), funs(mean, sd, var)) %>% 
+  rename(Variable = Treatment)
+
+sex <- rnaseq %>% 
+  group_by(Sex) %>% 
+  summarize_at(vars(Gene01:Gene10), funs(mean, sd, var)) %>% 
+  rename(Variable = Sex)
+
+pop %>%
+  bind_rows(treat) %>% 
+  bind_rows(sex) %>% 
+  select(Variable, order(colnames(.))) %>% # Reorder columns so all Gene01 info is together
+  mutate_at(vars(Gene01_mean:Gene10_var), funs(round(., digits=2))) %>% 
+  kable(col.names = c('Variable', 'Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance','Mean', 'St.Dev', 'Variance',
+                      'Mean', 'St.Dev', 'Variance')) %>%
+  kable_styling(c("striped", "bordered"), full_width = F) %>%
+  add_header_above(c(" " = 1, "Gene 1" = 3,  "Gene 2" = 3,  "Gene 3" = 3, 
+                    "Gene 4" = 3,  "Gene 5" = 3,  "Gene 6" = 3,  "Gene 7" = 3, 
+                    "Gene 8" = 3,  "Gene 9" = 3,  "Gene 10" = 3)) %>%
+  scroll_box(width = "700px", height = "350px") # Print all data
+
+```
+
